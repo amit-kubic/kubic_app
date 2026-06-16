@@ -4,7 +4,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'attendance_detail_screen.dart';
+import 'package:kt_app/attendance/attendance_camera_screen.dart';
+import '../attendance_detail_screen.dart';
 
 class AttendanceScreen extends StatefulWidget {
   const AttendanceScreen({super.key, required String title});
@@ -79,7 +80,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       setState(() {
         _errorMessage = "Network error. Please check your connection.";
       });
-      print("API Error: $e");
+      debugPrint("API Error: $e");
     } finally {
       setState(() {
         _isLoading = false;
@@ -96,14 +97,15 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     // Calculate stats from the live API data
     for (var day in _currentMonthAttendance) {
-      if (day['status'] == 'Present')
+      if (day['status'] == 'Present') {
         presentCount++;
-      else if (day['status'] == 'Late')
+      } else if (day['status'] == 'Late') {
         lateCount++;
-      else if (day['status'] == 'Absent')
+      } else if (day['status'] == 'Absent') {
         absentCount++;
-      else if (day['status'] == 'Weekly Off')
+      } else if (day['status'] == 'Weekly Off') {
         weeklyOffCount++;
+      }
     }
 
     // Calculation logic for Progress Bar
@@ -132,6 +134,28 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
           ),
         ),
       ),
+
+      floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: const Color(0xFF38468E),
+        icon: const Icon(Icons.face_retouching_natural, color: Colors.white),
+        label: const Text(
+          "Punch In",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        onPressed: () async {
+          // This opens your Face Scanner directly
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AttendanceCameraScreen(),
+            ),
+          );
+
+          // When the scanner closes, this refreshes your dashboard data
+          _fetchAttendanceData();
+        },
+      ),
+
       body: Column(
         children: [
           _buildMonthSelector(_currentMonthAttendance.length),

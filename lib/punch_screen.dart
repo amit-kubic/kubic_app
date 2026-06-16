@@ -2,9 +2,11 @@ import 'dart:io';
 import 'package:flutter/foundation.dart'; // Required for kIsWeb
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:intl/intl.dart';
+
+// Import your custom Face Scanner
+import 'package:kt_app/attendance/attendance_camera_screen.dart';
 
 class PunchScreen extends StatefulWidget {
   final String type; // "Punch In" or "Punch Out"
@@ -16,7 +18,8 @@ class PunchScreen extends StatefulWidget {
 }
 
 class _PunchScreenState extends State<PunchScreen> {
-  XFile? image;
+  // Replaced 'image' with our verification toggle
+  bool isFaceVerified = false;
   String location = "Fetching location...";
   bool isGpsVerified = false;
 
@@ -26,22 +29,19 @@ class _PunchScreenState extends State<PunchScreen> {
     getLocation();
   }
 
-  /// OPEN CAMERA - Forced to Front Camera
+  /// OPEN CAMERA - Launches the Live ML Kit Face Scanner
   Future openCamera() async {
-    final picker = ImagePicker();
-    try {
-      final XFile? pickedFile = await picker.pickImage(
-        source: ImageSource.camera,
-        preferredCameraDevice: CameraDevice.front, // 👈 FORCES FRONT CAMERA
-      );
-      if (pickedFile != null) {
-        setState(() {
-          image = pickedFile;
-        });
-      }
-    } catch (e) {
-      debugPrint("Error opening camera: $e");
-    }
+    // Open the Face Scanner
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AttendanceCameraScreen()),
+    );
+
+    // When the scanner closes and returns to this screen,
+    // we mark the face as verified so they can submit!
+    setState(() {
+      isFaceVerified = true;
+    });
   }
 
   /// GET GPS COORDINATES AND FULL ADDRESS
@@ -76,7 +76,7 @@ class _PunchScreenState extends State<PunchScreen> {
     }
   }
 
-  /// CONVERT COORDINATES TO FULL ADDRESS (Fixed the Error in your screenshot)
+  /// CONVERT COORDINATES TO FULL ADDRESS
   Future<void> getAddressFromLatLng(Position position) async {
     try {
       List<Placemark> placemarks = await placemarkFromCoordinates(
@@ -86,7 +86,6 @@ class _PunchScreenState extends State<PunchScreen> {
 
       Placemark place = placemarks[0];
 
-      // Safe way to build the address string without ternary errors
       List<String> addressParts = [];
 
       if (place.name != null && place.name!.isNotEmpty)
@@ -108,9 +107,7 @@ class _PunchScreenState extends State<PunchScreen> {
 
       setState(() {
         isGpsVerified = true;
-        location = addressParts.join(
-          ", ",
-        ); // Joins all parts with a comma automatically
+        location = addressParts.join(", ");
       });
     } catch (e) {
       setState(() => location = "Failed to get full address.");
@@ -160,13 +157,17 @@ class _PunchScreenState extends State<PunchScreen> {
       width: double.infinity,
       height: 55,
       child: ElevatedButton(
-        onPressed: image == null
+        // Activate button ONLY if GPS is fetched AND Face is scanned
+        onPressed: (!isFaceVerified || !isGpsVerified)
             ? null
             : () {
                 String currentTime = DateFormat(
                   'hh:mm a',
                 ).format(DateTime.now());
-                Navigator.pop(context, currentTime);
+                Navigator.pop(
+                  context,
+                  currentTime,
+                ); // Sends time back to dashboard
               },
         style: ElevatedButton.styleFrom(
           backgroundColor: widget.type == "Punch In"
@@ -257,90 +258,62 @@ class _PunchScreenState extends State<PunchScreen> {
 
   Widget _buildCameraPreview() {
     return GestureDetector(
-      onTap: openCamera,
+      onTap: isFaceVerified ? null : openCamera,
       child: Container(
         height: 250,
         width: double.infinity,
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: isFaceVerified ? const Color(0xFFF0FAF0) : Colors.white,
           borderRadius: BorderRadius.circular(15),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(
+            color: isFaceVerified
+                ? const Color(0xFF28A745)
+                : Colors.grey.shade200,
+            width: isFaceVerified ? 2 : 1,
+          ),
         ),
-        child: image == null
+        child: !isFaceVerified
             ? Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   const Icon(
-                    Icons.camera_alt_outlined,
+                    Icons.face_retouching_natural,
                     size: 50,
                     color: Colors.grey,
                   ),
                   const SizedBox(height: 10),
                   const Text(
-                    "Tap to capture photo",
+                    "Tap to scan face",
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       color: Color(0xFF1E293B),
                     ),
                   ),
                   Text(
-                    "Your selfie is required to verify attendance",
+                    "Live verification required for attendance",
                     style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
                   ),
                   const SizedBox(height: 15),
                   TextButton(
                     onPressed: openCamera,
                     child: const Text(
-                      "Open Camera",
+                      "Open Scanner",
                       style: TextStyle(color: Colors.redAccent),
                     ),
                   ),
                 ],
               )
-            : Stack(
+            : const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(15),
-                    child: kIsWeb
-                        ? Image.network(
-                            image!.path,
-                            width: double.infinity,
-                            height: double.infinity,
-                            fit: BoxFit.cover,
-                          )
-                        : Image.file(
-                            File(image!.path),
-                            width: double.infinity,
-                            height: double.infinity,
-                            fit: BoxFit.cover,
-                          ),
-                  ),
-                  Positioned(
-                    top: 10,
-                    left: 10,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF28A745),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.check, color: Colors.white, size: 14),
-                          Text(
-                            " Photo captured",
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
+                  Icon(Icons.check_circle, size: 60, color: Color(0xFF28A745)),
+                  SizedBox(height: 16),
+                  Text(
+                    "Face Verified Successfully!",
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF28A745),
                     ),
                   ),
                 ],

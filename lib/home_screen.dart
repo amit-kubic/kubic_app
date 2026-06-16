@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:kt_app/Alert_screen.dart';
-import 'package:kt_app/attendancecreen.dart';
+import 'package:kt_app/attendance/attendance_camera_screen.dart';
+import 'package:kt_app/attendance/attendancecreen.dart';
 import 'package:kt_app/documentsscreen.dart';
 import 'package:kt_app/holidayscreen.dart';
 import 'package:kt_app/leavescreen.dart';
@@ -364,18 +365,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
       onPressed: _isPunching
           ? null
           : () async {
-              // 1. Go to Camera/Location Screen first
+              // --- CHANGED: Go straight to Camera, skip PunchScreen! ---
               final resultTime = await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => PunchScreen(type: label),
+                  builder: (context) => const AttendanceCameraScreen(),
                 ),
               );
 
-              // 2. If user successfully captured punch info, save it to API
+              // If they clicked "Done" on the camera's bottom sheet, save it!
               if (resultTime != null) {
                 String punchType = nextStatus == 1 ? "IN" : "OUT";
-                await _savePunchToServer(resultTime, nextStatus, punchType);
+                await _savePunchToServer(
+                  resultTime.toString(),
+                  nextStatus,
+                  punchType,
+                );
               }
             },
       style: ElevatedButton.styleFrom(
